@@ -1,9 +1,13 @@
 export { getAgentDirectory } from "./agent-dir.ts";
 export {
-  loadJsonConfig,
-  saveJsonConfig,
-  type JsonConfigResult,
-  type MakeDirectory,
-  type ReadTextFile,
-  type WriteTextFile,
-} from "./json-config.ts";
+  j,
+  type AnyJpiNodeSpec,
+  type ArrayAttr,
+  type FieldValue,
+  type InferNode,
+  type JpiListSpec,
+  type JpiNodeSpec,
+  type ScalarField,
+} from "./builder.ts";
+export { Config, type ConfigLoadResult } from "./config.ts";
+export { Store, type StoreReadResult, type StoreRemoveResult } from "./store.ts";

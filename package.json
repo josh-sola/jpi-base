@@ -1,6 +1,6 @@
 {
   "name": "jpi-base",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "exports": {
     ".": {
@@ -8,7 +8,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
@@ -17,5 +19,9 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@bgotink/kdl": "^0.4.0",
+    "zod": "^4"
   }
 }
