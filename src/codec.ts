@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { AnyJpiNodeSpec, ArrayAttr, FieldValue, JpiListSpec, ScalarField } from "./builder.ts";
 import { isJpiListSpec, isJpiNodeSpec } from "./builder.ts";
 
-type Primitive = string | number | boolean;
+export type Primitive = string | number | boolean;
 type BaseKind = "string" | "number" | "boolean";
 
 export interface CompiledScalarLeaf {

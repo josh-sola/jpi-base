@@ -9,5 +9,5 @@ export {
   type JpiNodeSpec,
   type ScalarField,
 } from "./builder.ts";
-export { Config, type ConfigLoadResult } from "./config.ts";
+export { Config, type ConfigLoadResult, type ConfigSaveResult } from "./config.ts";
 export { Store, type StoreReadResult, type StoreRemoveResult } from "./store.ts";
