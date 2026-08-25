@@ -173,3 +173,44 @@ test("save with no changes is a no-op", async () => {
   const after = await readFile(config.path, "utf8");
   assert.equal(after, original);
 });
+
+const unionSchema = j.node({
+  fields: {
+    fallback: j
+      .union(j.string(), j.literal(false))
+      .describe("agent to use when nothing else matches")
+      .default("general-purpose"),
+  },
+});
+
+test("save writes the boolean arm of a union field as #false, then loads it back", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await config.load();
+
+  const { issues } = await config.save({ fallback: false });
+  assert.deepEqual(issues, []);
+
+  const after = await readFile(config.path, "utf8");
+  assert.match(after, /\n {2}fallback #false\n/);
+
+  const { value, issues: loadIssues } = await config.load();
+  assert.deepEqual(loadIssues, []);
+  assert.equal(value.fallback, false);
+});
+
+test("save writes the string arm of a union field as a quoted string, then loads it back", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await config.save({ fallback: false });
+
+  const { issues } = await config.save({ fallback: "anthropic/claude-sonnet-5" });
+  assert.deepEqual(issues, []);
+
+  const after = await readFile(config.path, "utf8");
+  assert.match(after, /\n {2}fallback "anthropic\/claude-sonnet-5"\n/);
+
+  const { value, issues: loadIssues } = await config.load();
+  assert.deepEqual(loadIssues, []);
+  assert.equal(value.fallback, "anthropic/claude-sonnet-5");
+});

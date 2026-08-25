@@ -11,7 +11,7 @@ type BaseKind = "string" | "number" | "boolean";
 export interface CompiledScalarLeaf {
   readonly key: string;
   readonly kdlName: string;
-  readonly kind: BaseKind;
+  readonly kind: BaseKind | "mixed";
   readonly description: string;
   readonly default: Primitive;
 }
@@ -89,9 +89,35 @@ function baseKindOf(schema: z.ZodType, path: string): BaseKind {
   );
 }
 
+function isPrimitiveLiteral(schema: z.ZodType): schema is z.ZodLiteral<Primitive> {
+  if (!(schema instanceof z.ZodLiteral)) return false;
+  return (schema.def.values as readonly unknown[]).every(
+    (value) => typeof value === "string" || typeof value === "number" || typeof value === "boolean",
+  );
+}
+
+/** Like baseKindOf, but also accepts a j.union(...) of scalars/primitive literals as "mixed". Only used for top-level field/attr scalar leaves — j.array/j.list items still go through baseKindOf and reject unions. */
+function scalarLeafKindOf(schema: z.ZodType, path: string): BaseKind | "mixed" {
+  if (!(schema instanceof z.ZodUnion)) return baseKindOf(schema, path);
+  for (const option of schema.def.options as readonly z.ZodType[]) {
+    if (
+      option instanceof z.ZodString ||
+      option instanceof z.ZodNumber ||
+      option instanceof z.ZodBoolean ||
+      isPrimitiveLiteral(option)
+    ) {
+      continue;
+    }
+    throw new Error(
+      `${path}: unsupported union member "${option.def.type}" (j.union only accepts string, number, boolean, and j.literal(...) of a primitive)`,
+    );
+  }
+  return "mixed";
+}
+
 function compileScalarLeaf(key: string, schema: ScalarField, path: string): CompiledScalarLeaf {
   const { inner, hasDefault, defaultValue, description } = unwrapDefault(schema);
-  const kind = baseKindOf(inner, path);
+  const kind = scalarLeafKindOf(inner, path);
   if (!description) {
     throw new Error(`${path}: missing .describe(...) — every field and attr needs a description`);
   }
@@ -352,9 +378,10 @@ function encodeKdlString(value: string): string {
   return `${out}"`;
 }
 
-function encodeLiteral(kind: BaseKind, value: Primitive): string {
-  if (kind === "string") return encodeKdlString(String(value));
-  if (kind === "boolean") return value ? "#true" : "#false";
+function encodeLiteral(kind: BaseKind | "mixed", value: Primitive): string {
+  const effectiveKind = kind === "mixed" ? (typeof value as BaseKind) : kind;
+  if (effectiveKind === "string") return encodeKdlString(String(value));
+  if (effectiveKind === "boolean") return value ? "#true" : "#false";
   return String(value);
 }
 

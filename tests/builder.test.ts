@@ -119,13 +119,18 @@ test("Config throws when a field is an unsupported schema construct", () => {
       new Config("x", j.node({ fields: { a: j.string().optional() as unknown as FieldValue } })),
     /unsupported schema type "optional"/,
   );
+  // A plain union of two scalars is now a legal "mixed" leaf (see j.union
+  // tests below), so exercise the guard with a union member that still isn't
+  // a scalar or a primitive literal.
   assert.throws(
     () =>
       new Config(
         "x",
-        j.node({ fields: { a: j.string().or(j.number()) as unknown as FieldValue } }),
+        j.node({
+          fields: { a: j.string().or(j.array(j.string())) as unknown as FieldValue },
+        }),
       ),
-    /unsupported schema type "union"/,
+    /unsupported union member "array"/,
   );
 });
 
@@ -253,4 +258,139 @@ test("status schema decodes to the documented shape", async () => {
     format: { row: [{ components: ["@jpi/model", "@jpi/cwd"] }] },
     disabledStatuses: [],
   });
+});
+
+test("j.union throws with fewer than two members", () => {
+  assert.throws(() => j.union(j.string()), /j\.union: requires at least two members, got 1/);
+});
+
+test("j.literal throws for a non-primitive value", () => {
+  assert.throws(
+    () => (j.literal as (value: unknown) => unknown)({ a: 1 }),
+    /j\.literal: expected a string, number, or boolean, got object/,
+  );
+});
+
+test("Config throws when a union appears inside j.array(...)", () => {
+  assert.throws(
+    () =>
+      new Config(
+        "x",
+        j.node({
+          attrs: {
+            a: j
+              .array(j.union(j.string(), j.literal(false)) as never)
+              .describe("a")
+              .default([]),
+          },
+        }),
+      ),
+    /unsupported schema type "union"/,
+  );
+});
+
+test("Config throws when a union appears inside j.list(...) items", () => {
+  assert.throws(
+    () =>
+      new Config(
+        "x",
+        j.node({
+          fields: {
+            a: j.list(j.union(j.string(), j.literal(false)), { description: "d", default: [] }),
+          },
+        }),
+      ),
+    /unsupported schema type "union"/,
+  );
+});
+
+const unionSchema = j.node({
+  fields: {
+    fallback: j
+      .union(j.string(), j.literal(false))
+      .describe("agent to use when nothing else matches")
+      .default("general-purpose"),
+  },
+});
+
+test("stanza generation: a union field renders its string default", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await config.load();
+
+  const text = await readFile(config.path, "utf8");
+  assert.equal(
+    text,
+    [
+      "// jpi.kdl — config for all jpi plugins.",
+      "// Sections are added by each plugin on first load.",
+      "",
+      "agents {",
+      "  // agent to use when nothing else matches",
+      '  fallback "general-purpose"',
+      "}",
+      "",
+    ].join("\n"),
+  );
+});
+
+const unionFalseDefaultSchema = j.node({
+  fields: {
+    fallback: j
+      .union(j.string(), j.literal(false))
+      .describe("agent to use when nothing else matches")
+      .default(false),
+  },
+});
+
+test("stanza generation: a union field with a boolean-false default renders #false", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionFalseDefaultSchema, env);
+  await config.load();
+
+  const text = await readFile(config.path, "utf8");
+  assert.equal(
+    text,
+    [
+      "// jpi.kdl — config for all jpi plugins.",
+      "// Sections are added by each plugin on first load.",
+      "",
+      "agents {",
+      "  // agent to use when nothing else matches",
+      "  fallback #false",
+      "}",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("union field decodes the string arm from a live value", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await writeFile(config.path, ["agents {", '  fallback "sonnet"', "}"].join("\n"), "utf8");
+
+  const { value, issues } = await config.load();
+  assert.deepEqual(issues, []);
+  assert.equal(value.fallback, "sonnet");
+});
+
+test("union field decodes the #false arm from a live value", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await writeFile(config.path, ["agents {", "  fallback #false", "}"].join("\n"), "utf8");
+
+  const { value, issues } = await config.load();
+  assert.deepEqual(issues, []);
+  assert.equal(value.fallback, false);
+});
+
+test("union field reports an issue and falls back to defaults for a value in neither arm", async () => {
+  const env = await tempEnv();
+  const config = new Config("agents", unionSchema, env);
+  await writeFile(config.path, ["agents {", "  fallback 42", "}"].join("\n"), "utf8");
+
+  const { value, issues } = await config.load();
+  assert.equal(issues.length, 1);
+  assert.match(issues[0], /^agents\.fallback: /);
+  assert.equal(value.fallback, "general-purpose");
 });

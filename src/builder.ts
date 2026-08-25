@@ -3,10 +3,22 @@ import { z } from "zod";
 const NODE_KIND = "jpi-node";
 const LIST_KIND = "jpi-list";
 
+type Primitive = string | number | boolean;
+
 type ScalarZod = z.ZodString | z.ZodNumber | z.ZodBoolean;
 
-/** A scalar schema, optionally wrapped in `.default(...)`. */
-export type ScalarField = ScalarZod | z.ZodDefault<ScalarZod>;
+/** A union member: a scalar zod or a `j.literal(...)` of a primitive. */
+type UnionMember = ScalarZod | z.ZodLiteral<Primitive>;
+
+/** A `j.union(...)` of scalars and/or primitive literals. */
+type ScalarUnion = z.ZodUnion<readonly UnionMember[]>;
+
+/** A scalar schema (or union of scalars), optionally wrapped in `.default(...)`. */
+export type ScalarField =
+  | ScalarZod
+  | z.ZodDefault<ScalarZod>
+  | ScalarUnion
+  | z.ZodDefault<ScalarUnion>;
 
 /** An array-of-scalars schema, optionally wrapped in `.default(...)`. */
 export type ArrayAttr = z.ZodArray<ScalarZod> | z.ZodDefault<z.ZodArray<ScalarZod>>;
@@ -106,10 +118,26 @@ function list<Item extends ScalarField | AnyJpiNodeSpec>(
   };
 }
 
+function literal<T extends Primitive>(value: T): z.ZodLiteral<T> {
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+    throw new Error(`j.literal: expected a string, number, or boolean, got ${typeof value}`);
+  }
+  return z.literal(value);
+}
+
+function union<const T extends readonly UnionMember[]>(...members: T): z.ZodUnion<T> {
+  if (members.length < 2) {
+    throw new Error(`j.union: requires at least two members, got ${members.length}`);
+  }
+  return z.union(members);
+}
+
 export const j = {
   string: (): z.ZodString => z.string(),
   number: (): z.ZodNumber => z.number(),
   boolean: (): z.ZodBoolean => z.boolean(),
+  literal,
+  union,
   array: <T extends ScalarZod>(item: T): z.ZodArray<T> => z.array(item),
   node,
   list,

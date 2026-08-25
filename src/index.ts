@@ -10,4 +10,5 @@ export {
   type ScalarField,
 } from "./builder.ts";
 export { Config, type ConfigLoadResult, type ConfigSaveResult } from "./config.ts";
+export { projectSlug } from "./project-slug.ts";
 export { Store, type StoreReadResult, type StoreRemoveResult } from "./store.ts";
