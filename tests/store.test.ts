@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vite-plus/test";
@@ -111,4 +111,80 @@ test("nested path segments are validated, rejecting .., leading dots, and empty 
   assert.throws(() => store.path(".hidden/state.json"), /invalid file name/);
   assert.throws(() => store.path("a//b.json"), /invalid file name/);
   assert.throws(() => store.path(""), /invalid file name/);
+});
+
+test("writeText then readText round-trips verbatim text, including a nested path", async () => {
+  const store = new Store("memory", await tempEnv());
+
+  await store.writeText("notes.md", "hello world");
+  assert.deepEqual(await store.readText("notes.md"), { value: "hello world" });
+
+  await store.writeText("a/b/c.md", "nested, no trailing newline");
+  assert.deepEqual(await store.readText("a/b/c.md"), { value: "nested, no trailing newline" });
+
+  const written = await readFile(store.path("notes.md"), "utf8");
+  assert.equal(written, "hello world");
+});
+
+test("readText on a missing file reports missing rather than a problem", async () => {
+  const store = new Store("memory", await tempEnv());
+  assert.deepEqual(await store.readText("notes.md"), { missing: true });
+});
+
+test("writeText replaces existing content", async () => {
+  const store = new Store("memory", await tempEnv());
+
+  await store.writeText("notes.md", "first");
+  await store.writeText("notes.md", "second");
+  assert.deepEqual(await store.readText("notes.md"), { value: "second" });
+});
+
+test("ensureDirectory creates the directory, returns the absolute path, and is idempotent", async () => {
+  const env = await tempEnv();
+  const store = new Store("memory", env);
+
+  const path = await store.ensureDirectory("notes/drafts");
+  assert.match(path, /\/jpi\/memory\/notes\/drafts$/);
+  assert.ok((await stat(path)).isDirectory());
+
+  const again = await store.ensureDirectory("notes/drafts");
+  assert.equal(again, path);
+});
+
+test("readText, writeText, ensureDirectory, and list validate segments like path()", async () => {
+  const store = new Store("memory", await tempEnv());
+
+  await assert.rejects(() => store.readText("../escape.md"), /invalid file name/);
+  await assert.rejects(() => store.readText(".hidden.md"), /invalid file name/);
+  await assert.rejects(() => store.readText(""), /invalid file name/);
+
+  await assert.rejects(() => store.writeText("../escape.md", "x"), /invalid file name/);
+  await assert.rejects(() => store.writeText(".hidden.md", "x"), /invalid file name/);
+  await assert.rejects(() => store.writeText("", "x"), /invalid file name/);
+
+  await assert.rejects(() => store.ensureDirectory("../escape"), /invalid file name/);
+  await assert.rejects(() => store.ensureDirectory(".hidden"), /invalid file name/);
+  await assert.rejects(() => store.ensureDirectory(""), /invalid file name/);
+
+  await assert.rejects(() => store.list("../escape"), /invalid file name/);
+  await assert.rejects(() => store.list(".hidden"), /invalid file name/);
+  await assert.rejects(() => store.list(""), /invalid file name/);
+});
+
+test("list returns entry names, skips dot-prefixed entries, and returns [] for a missing directory", async () => {
+  const env = await tempEnv();
+  const store = new Store("memory", env);
+
+  assert.deepEqual(await store.list("notes"), []);
+
+  await store.writeText("notes/one.md", "1");
+  await store.writeText("notes/two.md", "2");
+  await writeFile(
+    join(env.PI_CODING_AGENT_DIR as string, "jpi", "memory", "notes", ".hidden.md"),
+    "3",
+    "utf8",
+  );
+
+  const entries = await store.list("notes");
+  assert.deepEqual(entries.sort(), ["one.md", "two.md"]);
 });

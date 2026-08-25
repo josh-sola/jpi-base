@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 
 import { getAgentDirectory } from "./agent-dir.ts";
@@ -23,8 +23,8 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 }
 
 /**
- * Reads and writes one plugin's private state files under the shared jpi
- * agent directory, namespaced by extension so plugins can't collide.
+ * Reads and writes one plugin's private JSON and text state under the shared
+ * jpi agent directory, namespaced by extension so plugins can't collide.
  */
 export class Store {
   readonly #directory: string;
@@ -68,12 +68,51 @@ export class Store {
   }
 
   async write(file: string, value: unknown): Promise<void> {
+    await this.#writeAtomic(this.path(file), `${JSON.stringify(value, null, 2)}\n`);
+  }
+
+  async readText(file: string): Promise<StoreReadResult> {
     const path = this.path(file);
+    try {
+      return { value: await readFile(path, "utf8") };
+    } catch (error) {
+      if (isErrnoException(error) && error.code === "ENOENT") {
+        return { missing: true };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return { problem: `could not read state: ${message}` };
+    }
+  }
+
+  async writeText(file: string, text: string): Promise<void> {
+    await this.#writeAtomic(this.path(file), text);
+  }
+
+  async ensureDirectory(dir: string): Promise<string> {
+    const path = this.path(dir);
+    await mkdir(path, { recursive: true });
+    return path;
+  }
+
+  async list(dir: string): Promise<string[]> {
+    let entries: string[];
+    try {
+      entries = await readdir(this.path(dir));
+    } catch (error) {
+      if (isErrnoException(error) && error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+    return entries.filter((entry) => !entry.startsWith("."));
+  }
+
+  async #writeAtomic(path: string, data: string): Promise<void> {
     const directory = dirname(path);
     await mkdir(directory, { recursive: true });
 
     const tempPath = join(directory, `.${randomUUID()}.tmp`);
-    await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await writeFile(tempPath, data, "utf8");
     try {
       await rename(tempPath, path);
     } catch (error) {
