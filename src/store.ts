@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { getAgentDirectory } from "./agent-dir.ts";
 
 export type StoreReadResult = { value: unknown } | { missing: true } | { problem: string };
+export type StoreTextReadResult = { value: string } | { missing: true } | { problem: string };
 export type StoreRemoveResult = { problem: string } | undefined;
 
 const NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
@@ -71,7 +72,7 @@ export class Store {
     await this.#writeAtomic(this.path(file), `${JSON.stringify(value, null, 2)}\n`);
   }
 
-  async readText(file: string): Promise<StoreReadResult> {
+  async readText(file: string): Promise<StoreTextReadResult> {
     const path = this.path(file);
     try {
       return { value: await readFile(path, "utf8") };

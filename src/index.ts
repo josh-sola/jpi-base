@@ -12,4 +12,9 @@ export {
 export { Config, type ConfigLoadResult, type ConfigSaveResult } from "./config.ts";
 export { projectSlug } from "./project-slug.ts";
 export { scratchpadDir, scratchpadRoot } from "./scratchpad-dir.ts";
-export { Store, type StoreReadResult, type StoreRemoveResult } from "./store.ts";
+export {
+  Store,
+  type StoreReadResult,
+  type StoreRemoveResult,
+  type StoreTextReadResult,
+} from "./store.ts";
