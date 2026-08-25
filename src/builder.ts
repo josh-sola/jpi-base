@@ -22,7 +22,9 @@ export interface JpiNodeSpec<
 
 export type AnyJpiNodeSpec = JpiNodeSpec<any, any>;
 
-export interface JpiListSpec<Item extends ScalarField | AnyJpiNodeSpec = ScalarField | AnyJpiNodeSpec> {
+export interface JpiListSpec<
+  Item extends ScalarField | AnyJpiNodeSpec = ScalarField | AnyJpiNodeSpec,
+> {
   readonly kind: typeof LIST_KIND;
   readonly item: Item;
   readonly description: string;
@@ -53,14 +55,19 @@ type InferFields<Fields> = {
   [K in keyof Fields]: InferField<Fields[K]>;
 };
 
-export type InferNode<Spec extends AnyJpiNodeSpec> = InferAttrs<Spec["attrs"]> & InferFields<Spec["fields"]>;
+export type InferNode<Spec extends AnyJpiNodeSpec> = InferAttrs<Spec["attrs"]> &
+  InferFields<Spec["fields"]>;
 
 export function isJpiNodeSpec(value: unknown): value is AnyJpiNodeSpec {
-  return typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === NODE_KIND;
+  return (
+    typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === NODE_KIND
+  );
 }
 
 export function isJpiListSpec(value: unknown): value is JpiListSpec {
-  return typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === LIST_KIND;
+  return (
+    typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === LIST_KIND
+  );
 }
 
 function isArraySchema(schema: z.ZodType): boolean {

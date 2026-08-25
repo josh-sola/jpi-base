@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 const runningAsRoot = process.getuid?.() === 0;
 
@@ -18,7 +18,12 @@ const schema = j.node({
   fields: {
     model: j.string().describe("model that runs the reviews").default("anthropic/claude-sonnet-5"),
     enabled: j.boolean().describe("set to #false to disable reviews").default(true),
-    timeoutMs: j.number().int().positive().describe("per-review timeout in milliseconds").default(10000),
+    timeoutMs: j
+      .number()
+      .int()
+      .positive()
+      .describe("per-review timeout in milliseconds")
+      .default(10000),
     allow: j.node({
       fields: {
         tool: j.list(j.string(), {
@@ -44,7 +49,10 @@ test("load creates jpi.kdl with the header and the section on a missing file", a
   assert.equal(value.model, "anthropic/claude-sonnet-5");
 
   const text = await readFile(config.path, "utf8");
-  assert.match(text, /^\/\/ jpi\.kdl — config for all jpi plugins\.\n\/\/ Sections are added by each plugin on first load\.\n/);
+  assert.match(
+    text,
+    /^\/\/ jpi\.kdl — config for all jpi plugins\.\n\/\/ Sections are added by each plugin on first load\.\n/,
+  );
   assert.match(text, /guardian \{/);
 });
 
@@ -66,7 +74,11 @@ test("a second load reads the already-written file without changing it", async (
 test("an existing file with the section absent gets the stanza appended after a blank line", async () => {
   const env = await tempEnv();
   const config = new Config("guardian", schema, env);
-  await writeFile(config.path, "// jpi.kdl — config for all jpi plugins.\n// Sections are added by each plugin on first load.\n", "utf8");
+  await writeFile(
+    config.path,
+    "// jpi.kdl — config for all jpi plugins.\n// Sections are added by each plugin on first load.\n",
+    "utf8",
+  );
 
   const { value, issues } = await config.load();
   assert.deepEqual(issues, []);
@@ -140,7 +152,7 @@ test("unknown keys are reported as an issue but the rest of the section still de
   const config = new Config("guardian", schema, env);
   await writeFile(
     config.path,
-    ['guardian {', '  model "custom-model"', "  mystery-field 1", "}"].join("\n"),
+    ["guardian {", '  model "custom-model"', "  mystery-field 1", "}"].join("\n"),
     "utf8",
   );
 
@@ -155,7 +167,7 @@ test("a type-violating value reports an issue and falls back to full defaults, n
   const config = new Config("guardian", schema, env);
   await writeFile(
     config.path,
-    ['guardian {', '  model "custom-model"', "  timeout-ms \"not-a-number\"", "}"].join("\n"),
+    ["guardian {", '  model "custom-model"', '  timeout-ms "not-a-number"', "}"].join("\n"),
     "utf8",
   );
 
@@ -173,9 +185,9 @@ test("Config exposes the resolved jpi.kdl path", async () => {
   assert.match(config.path, /jpi\.kdl$/);
 });
 
-test(
+// root bypasses permission checks, so these two skip under root.
+test.skipIf(runningAsRoot)(
   "an unwritable agent directory reports an issue instead of throwing",
-  { skip: runningAsRoot && "root bypasses permission checks" },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "jpi-base-config-ro-dir-"));
     await chmod(directory, 0o500);
@@ -191,9 +203,8 @@ test(
   },
 );
 
-test(
+test.skipIf(runningAsRoot)(
   "a read-only jpi.kdl reports a write issue when appending a stanza, without a partial value",
-  { skip: runningAsRoot && "root bypasses permission checks" },
   async () => {
     const env = await tempEnv();
     const config = new Config("guardian", schema, env);

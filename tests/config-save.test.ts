@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 import { j } from "../src/builder.ts";
 import { Config } from "../src/config.ts";
@@ -16,7 +16,12 @@ const schema = j.node({
   fields: {
     model: j.string().describe("model that runs the reviews").default("anthropic/claude-sonnet-5"),
     enabled: j.boolean().describe("set to #false to disable reviews").default(true),
-    timeoutMs: j.number().int().positive().describe("per-review timeout in milliseconds").default(10000),
+    timeoutMs: j
+      .number()
+      .int()
+      .positive()
+      .describe("per-review timeout in milliseconds")
+      .default(10000),
     allow: j.node({
       fields: {
         tool: j.list(j.string(), {
@@ -79,13 +84,20 @@ test("save preserves everything else in the file byte-for-byte, changing only th
 test("save inserts a field that's absent from an existing stanza", async () => {
   const env = await tempEnv();
   const config = new Config("guardian", schema, env);
-  await writeFile(config.path, ['guardian {', '  model "custom-model"', "}"].join("\n") + "\n", "utf8");
+  await writeFile(
+    config.path,
+    ["guardian {", '  model "custom-model"', "}"].join("\n") + "\n",
+    "utf8",
+  );
 
   const { issues } = await config.save({ timeoutMs: 777 });
   assert.deepEqual(issues, []);
 
   const after = await readFile(config.path, "utf8");
-  assert.equal(after, ['guardian {', '  model "custom-model"', "  timeout-ms 777", "}"].join("\n") + "\n");
+  assert.equal(
+    after,
+    ["guardian {", '  model "custom-model"', "  timeout-ms 777", "}"].join("\n") + "\n",
+  );
 
   const { value, issues: loadIssues } = await config.load();
   assert.deepEqual(loadIssues, []);
@@ -95,7 +107,7 @@ test("save inserts a field that's absent from an existing stanza", async () => {
 test("saving an unsupported nested key returns an issue and writes nothing", async () => {
   const env = await tempEnv();
   const config = new Config("guardian", schema, env);
-  const original = ['guardian {', '  model "custom-model"', "}"].join("\n") + "\n";
+  const original = ["guardian {", '  model "custom-model"', "}"].join("\n") + "\n";
   await writeFile(config.path, original, "utf8");
 
   const { issues } = await config.save({ allow: { tool: ["web_search"] } } as never);
@@ -109,7 +121,7 @@ test("saving an unsupported nested key returns an issue and writes nothing", asy
 test("saving an invalid value returns an issue and writes nothing", async () => {
   const env = await tempEnv();
   const config = new Config("guardian", schema, env);
-  const original = ['guardian {', '  model "custom-model"', "}"].join("\n") + "\n";
+  const original = ["guardian {", '  model "custom-model"', "}"].join("\n") + "\n";
   await writeFile(config.path, original, "utf8");
 
   const { issues } = await config.save({ timeoutMs: -5 });
@@ -152,7 +164,7 @@ test("save appends the section when the file exists but the section is missing",
 test("save with no changes is a no-op", async () => {
   const env = await tempEnv();
   const config = new Config("guardian", schema, env);
-  const original = ['guardian {', '  model "custom-model"', "}"].join("\n") + "\n";
+  const original = ["guardian {", '  model "custom-model"', "}"].join("\n") + "\n";
   await writeFile(config.path, original, "utf8");
 
   const { issues } = await config.save({});

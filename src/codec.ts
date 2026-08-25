@@ -26,7 +26,12 @@ export interface CompiledArrayLeaf {
 
 export type CompiledField =
   | ({ readonly type: "field-scalar" } & CompiledScalarLeaf)
-  | { readonly type: "field-node"; readonly key: string; readonly kdlName: string; readonly node: CompiledNode }
+  | {
+      readonly type: "field-node";
+      readonly key: string;
+      readonly kdlName: string;
+      readonly node: CompiledNode;
+    }
   | {
       readonly type: "field-list";
       readonly key: string;
@@ -67,7 +72,12 @@ function unwrapDefault(schema: z.ZodType): {
       description: inner.description ?? schema.description,
     };
   }
-  return { inner: schema, hasDefault: false, defaultValue: undefined, description: schema.description };
+  return {
+    inner: schema,
+    hasDefault: false,
+    defaultValue: undefined,
+    description: schema.description,
+  };
 }
 
 function baseKindOf(schema: z.ZodType, path: string): BaseKind {
@@ -103,7 +113,13 @@ function compileArrayAttr(key: string, schema: z.ZodType, path: string): Compile
   if (!hasDefault) {
     throw new Error(`${path}: missing .default(...) — every array attr needs a default value`);
   }
-  return { key, kdlName: toKebabCase(key), itemKind, description, default: defaultValue as readonly Primitive[] };
+  return {
+    key,
+    kdlName: toKebabCase(key),
+    itemKind,
+    description,
+    default: defaultValue as readonly Primitive[],
+  };
 }
 
 function compileListItem(
@@ -153,7 +169,9 @@ export function compileNode(spec: AnyJpiNodeSpec, path: string): CompiledNode {
   let attrArray: CompiledArrayLeaf | null = null;
   const zodShape: Record<string, z.ZodType> = {};
 
-  for (const [key, value] of Object.entries(spec.attrs as Record<string, ScalarField | ArrayAttr>)) {
+  for (const [key, value] of Object.entries(
+    spec.attrs as Record<string, ScalarField | ArrayAttr>,
+  )) {
     const attrPath = `${path}.${key}`;
     const { inner } = unwrapDefault(value);
     if (inner instanceof z.ZodArray) {
@@ -197,7 +215,12 @@ export function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function formatIssue(sectionLabel: string, path: string, message: string, loc?: Location): string {
+export function formatIssue(
+  sectionLabel: string,
+  path: string,
+  message: string,
+  loc?: Location,
+): string {
   const fullPath = path ? `${sectionLabel}.${path}` : sectionLabel;
   const location = loc ? ` (${loc.line}:${loc.column})` : "";
   return `${fullPath}: ${message}${location}`;
@@ -347,7 +370,12 @@ function renderEntries(compiled: CompiledNode, value: Record<string, unknown>): 
   return parts.length > 0 ? ` ${parts.join(" ")}` : "";
 }
 
-function renderNode(name: string, compiled: CompiledNode, value: Record<string, unknown>, indent: string): string[] {
+function renderNode(
+  name: string,
+  compiled: CompiledNode,
+  value: Record<string, unknown>,
+  indent: string,
+): string[] {
   const entries = renderEntries(compiled, value);
   if (compiled.fields.length === 0) {
     return [`${indent}${name}${entries}`];
@@ -361,7 +389,11 @@ function renderNode(name: string, compiled: CompiledNode, value: Record<string, 
   return lines;
 }
 
-function renderField(field: CompiledField, value: Record<string, unknown>, indent: string): string[] {
+function renderField(
+  field: CompiledField,
+  value: Record<string, unknown>,
+  indent: string,
+): string[] {
   if (field.type === "field-scalar") {
     return [
       `${indent}// ${field.description}`,
@@ -378,7 +410,9 @@ function renderField(field: CompiledField, value: Record<string, unknown>, inden
     if (field.item.type === "item-scalar") {
       lines.push(`${indent}${field.kdlName} ${encodeLiteral(field.item.kind, item as Primitive)}`);
     } else {
-      lines.push(...renderNode(field.kdlName, field.item.node, item as Record<string, unknown>, indent));
+      lines.push(
+        ...renderNode(field.kdlName, field.item.node, item as Record<string, unknown>, indent),
+      );
     }
   }
   return lines;

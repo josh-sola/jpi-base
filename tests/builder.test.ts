@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 import { Config } from "../src/config.ts";
-import { j } from "../src/builder.ts";
+import { type FieldValue, j } from "../src/builder.ts";
 
 async function tempEnv(): Promise<NodeJS.ProcessEnv> {
   const directory = await mkdtemp(join(tmpdir(), "jpi-base-builder-"));
@@ -113,23 +113,29 @@ test("j.node throws immediately when a node has two array attrs", () => {
 });
 
 test("Config throws when a field is an unsupported schema construct", () => {
+  // Deliberately outside the FieldValue contract, to exercise the runtime guard.
   assert.throws(
-    () => new Config("x", j.node({ fields: { a: j.string().optional() } })),
+    () =>
+      new Config("x", j.node({ fields: { a: j.string().optional() as unknown as FieldValue } })),
     /unsupported schema type "optional"/,
   );
   assert.throws(
-    () => new Config("x", j.node({ fields: { a: j.string().or(j.number()) } })),
+    () =>
+      new Config(
+        "x",
+        j.node({ fields: { a: j.string().or(j.number()) as unknown as FieldValue } }),
+      ),
     /unsupported schema type "union"/,
   );
 });
 
 test("Config throws when a j.list is missing its description or default", () => {
-  const noDescription = { default: [] } as { description: string; default: string[] };
+  const noDescription = { default: [] } as unknown as { description: string; default: string[] };
   assert.throws(
     () => new Config("x", j.node({ fields: { a: j.list(j.string(), noDescription) } })),
     /j\.list requires a description/,
   );
-  const noDefault = { description: "d" } as { description: string; default: string[] };
+  const noDefault = { description: "d" } as unknown as { description: string; default: string[] };
   assert.throws(
     () => new Config("x", j.node({ fields: { a: j.list(j.string(), noDefault) } })),
     /j\.list requires a default array/,
@@ -138,10 +144,7 @@ test("Config throws when a j.list is missing its description or default", () => 
 
 const guardianSchema = j.node({
   fields: {
-    model: j
-      .string()
-      .describe("model that runs the reviews")
-      .default("anthropic/claude-sonnet-5"),
+    model: j.string().describe("model that runs the reviews").default("anthropic/claude-sonnet-5"),
     enabled: j.boolean().describe("set to #false to disable reviews").default(true),
     timeoutMs: j
       .number()
@@ -172,10 +175,7 @@ const statusSchema = j.node({
         row: j.list(
           j.node({
             attrs: {
-              components: j
-                .array(j.string())
-                .describe("component ids, left to right")
-                .default([]),
+              components: j.array(j.string()).describe("component ids, left to right").default([]),
             },
           }),
           {

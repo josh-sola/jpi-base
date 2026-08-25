@@ -30,7 +30,11 @@ export class Store {
   readonly #extension: string;
   readonly #directory: string;
 
-  constructor(extension: string, env: NodeJS.ProcessEnv = process.env, homeDirectory: string = homedir()) {
+  constructor(
+    extension: string,
+    env: NodeJS.ProcessEnv = process.env,
+    homeDirectory: string = homedir(),
+  ) {
     assertValidName("extension", extension);
     this.#extension = extension;
     this.#directory = join(getAgentDirectory(env, homeDirectory), "jpi");

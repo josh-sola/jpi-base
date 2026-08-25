@@ -1,4 +1,11 @@
-import { Document, format as formatKdl, InvalidKdlError, Node, parse as parseKdl, type Location } from "@bgotink/kdl";
+import {
+  Document,
+  format as formatKdl,
+  InvalidKdlError,
+  Node,
+  parse as parseKdl,
+  type Location,
+} from "@bgotink/kdl";
 import { mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -41,7 +48,9 @@ function errorMessage(error: unknown): string {
 
 function formatParseError(error: unknown): string {
   if (error instanceof InvalidKdlError) {
-    return [...error.flat()].map((sub) => sub.message).join("; ");
+    return Array.from(error.flat())
+      .map((sub) => sub.message)
+      .join("; ");
   }
   return errorMessage(error);
 }
@@ -107,7 +116,10 @@ export class Config<Schema extends AnyJpiNodeSpec> {
       } catch (error) {
         appendIssues.push(`could not write jpi.kdl: ${errorMessage(error)}`);
       }
-      return { value: cloneJson(this.#compiled.defaults) as InferNode<Schema>, issues: appendIssues };
+      return {
+        value: cloneJson(this.#compiled.defaults) as InferNode<Schema>,
+        issues: appendIssues,
+      };
     }
 
     const issues: string[] = [];
@@ -143,7 +155,11 @@ export class Config<Schema extends AnyJpiNodeSpec> {
       const target = this.#findScalarTarget(key);
       if (!target) {
         issues.push(
-          formatIssue(this.#section, key, "not a top-level scalar field (nested nodes, lists, and array attrs can't be saved)"),
+          formatIssue(
+            this.#section,
+            key,
+            "not a top-level scalar field (nested nodes, lists, and array attrs can't be saved)",
+          ),
         );
         continue;
       }
