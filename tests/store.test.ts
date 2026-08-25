@@ -11,9 +11,17 @@ async function tempEnv(): Promise<NodeJS.ProcessEnv> {
   return { PI_CODING_AGENT_DIR: directory };
 }
 
-test("path namespaces the file under <extension>-<file> inside the jpi directory", async () => {
+test("path resolves under the extension's own directory", async () => {
   const store = new Store("guardian", await tempEnv());
-  assert.match(store.path("state.json"), /\/jpi\/guardian-state\.json$/);
+  assert.match(store.path("state.json"), /\/jpi\/guardian\/state\.json$/);
+});
+
+test("path resolves a nested, slash-separated file", async () => {
+  const store = new Store("guardian", await tempEnv());
+  assert.match(
+    store.path("my-slug/session-abc.json"),
+    /\/jpi\/guardian\/my-slug\/session-abc\.json$/,
+  );
 });
 
 test("reading a missing file reports missing rather than a problem", async () => {
@@ -24,7 +32,7 @@ test("reading a missing file reports missing rather than a problem", async () =>
 test("reading malformed JSON reports a problem", async () => {
   const env = await tempEnv();
   const store = new Store("guardian", env);
-  await mkdir(join(env.PI_CODING_AGENT_DIR as string, "jpi"), { recursive: true });
+  await mkdir(join(env.PI_CODING_AGENT_DIR as string, "jpi", "guardian"), { recursive: true });
   await writeFile(store.path("state.json"), "{not json", "utf8");
 
   const result = await store.read("state.json");
@@ -60,8 +68,8 @@ test("write cleans up its temp file when the final rename fails", async () => {
 
   await assert.rejects(() => store.write("state.json", { a: 1 }));
 
-  const entries = await readdir(join(env.PI_CODING_AGENT_DIR as string, "jpi"));
-  assert.deepEqual(entries, ["guardian-state.json"]);
+  const entries = await readdir(join(env.PI_CODING_AGENT_DIR as string, "jpi", "guardian"));
+  assert.deepEqual(entries, ["state.json"]);
 });
 
 test("extension and file names are validated", async () => {
@@ -72,4 +80,35 @@ test("extension and file names are validated", async () => {
   const store = new Store("guardian", env);
   assert.throws(() => store.path(".hidden"), /invalid file name/);
   assert.throws(() => store.path("has space"), /invalid file name/);
+});
+
+test("write creates missing parent directories for a nested path, and round-trips through it", async () => {
+  const store = new Store("guardian", await tempEnv());
+  const value = { session: "abc" };
+
+  await store.write("my-slug/session-abc.json", value);
+  assert.deepEqual(await store.read("my-slug/session-abc.json"), { value });
+
+  assert.equal(await store.remove("my-slug/session-abc.json"), undefined);
+  assert.deepEqual(await store.read("my-slug/session-abc.json"), { missing: true });
+});
+
+test("write puts its temp file in the target's own directory, dot-prefixed", async () => {
+  const env = await tempEnv();
+  const store = new Store("guardian", env);
+  await store.write("my-slug/session-abc.json", { a: 1 });
+
+  const entries = await readdir(
+    join(env.PI_CODING_AGENT_DIR as string, "jpi", "guardian", "my-slug"),
+  );
+  assert.deepEqual(entries, ["session-abc.json"]);
+});
+
+test("nested path segments are validated, rejecting .., leading dots, and empty segments", async () => {
+  const store = new Store("guardian", await tempEnv());
+  assert.throws(() => store.path("../escape.json"), /invalid file name/);
+  assert.throws(() => store.path("a/../b.json"), /invalid file name/);
+  assert.throws(() => store.path(".hidden/state.json"), /invalid file name/);
+  assert.throws(() => store.path("a//b.json"), /invalid file name/);
+  assert.throws(() => store.path(""), /invalid file name/);
 });

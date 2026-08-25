@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { dirname, join } from "node:path";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
 
 import { getAgentDirectory } from "./agent-dir.ts";
 
@@ -27,7 +27,6 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
  * agent directory, namespaced by extension so plugins can't collide.
  */
 export class Store {
-  readonly #extension: string;
   readonly #directory: string;
 
   constructor(
@@ -36,13 +35,15 @@ export class Store {
     homeDirectory: string = homedir(),
   ) {
     assertValidName("extension", extension);
-    this.#extension = extension;
-    this.#directory = join(getAgentDirectory(env, homeDirectory), "jpi");
+    this.#directory = join(getAgentDirectory(env, homeDirectory), "jpi", extension);
   }
 
   path(file: string): string {
-    assertValidName("file", file);
-    return join(this.#directory, `${this.#extension}-${file}`);
+    const segments = file.split("/");
+    for (const segment of segments) {
+      assertValidName("file", segment);
+    }
+    return join(this.#directory, ...segments);
   }
 
   async read(file: string): Promise<StoreReadResult> {
@@ -68,9 +69,10 @@ export class Store {
 
   async write(file: string, value: unknown): Promise<void> {
     const path = this.path(file);
-    await mkdir(this.#directory, { recursive: true });
+    const directory = dirname(path);
+    await mkdir(directory, { recursive: true });
 
-    const tempPath = join(this.#directory, `.${this.#extension}-${file}.${randomUUID()}.tmp`);
+    const tempPath = join(directory, `.${randomUUID()}.tmp`);
     await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
     try {
       await rename(tempPath, path);

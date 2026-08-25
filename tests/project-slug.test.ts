@@ -14,3 +14,8 @@ test("projectSlug keeps the leading dash from a leading slash", () => {
 test("projectSlug on the root path", () => {
   assert.equal(projectSlug("/"), "-");
 });
+
+test("projectSlug dashes characters a Store path segment can't hold", () => {
+  assert.equal(projectSlug("/Users/josh/My Repos"), "-Users-josh-My-Repos");
+  assert.equal(projectSlug("/Users/josh/repos:x"), "-Users-josh-repos-x");
+});
